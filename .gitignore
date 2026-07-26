@@ -1,0 +1,29 @@
+# build output
+*.skill
+*.zip
+
+# runtime data
+afk/data/*
+!afk/data/.gitkeep
+
+# artifacts the skill writes into whatever directory it runs in —
+# these are session records, never committed to the skill repo
+afk_log_*.md
+afk_session.md
+BLOCKED_*.md
+council_log_*.md
+
+# secrets — belt and braces; nothing in this repo should ever need them
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+session.pickle
+cookie_session.json
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
