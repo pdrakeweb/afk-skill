@@ -2,15 +2,38 @@
 
 The tier test, in order:
 
-1. **Can it be undone with local effort, by me, right now?** No → not low.
-2. **Does anything leave this machine?** (network write, message, publish,
+1. **Is it inside a recorded permission grant?** Outside the grant, or outside
+   its **scope** → high. The grant is the authorization; the rest is a block.
+2. **Can it be undone with local effort, by me, right now?** No → not low.
+3. **Does anything leave this machine?** (network write, message, publish,
    deploy, payment) Yes → not low, and probably high.
-3. **Would the user be annoyed to discover it, or angry?** Annoyed → medium.
+4. **Would the user be annoyed to discover it, or angry?** Annoyed → medium.
    Angry → high.
-4. **Am I sure?** Not sure → **higher tier**. This rule wins over the others.
+5. **Am I sure?** Not sure → **higher tier**. This rule wins over the others.
 
-Rule 4 is the important one. The cost of over-classifying is a decision that
+Rule 5 is the important one. The cost of over-classifying is a decision that
 waits an hour. The cost of under-classifying is unbounded.
+
+Rule 1 is the one most often rationalized away. "They granted `alembic upgrade`,
+and this is an `alembic upgrade`" is not the test — the recorded scope was *dev
+DB only*, so the same command against staging is a **block**, not a judgement
+call. Scope creep inside a grant is the most plausible way this skill causes
+real damage.
+
+## Conservative mode
+
+When Remote Control is not connected — at departure, or after the watchdog
+detects a loss — the boundary moves: **every medium-stakes decision that is not
+trivially reversible is treated as high.**
+
+This is not caution theatre. With no notification channel, an error compounds
+unwatched for the entire remaining window, and the user cannot be told. The
+value of a medium decision is roughly constant; its risk goes up sharply. So the
+threshold moves with it.
+
+"Trivially reversible" means: one command, no external state, no other work
+built on top of it. Deleting a file I just wrote is trivially reversible.
+Adding a dependency is not.
 
 ---
 
@@ -118,3 +141,26 @@ they authorized and no wider. "Yes, merge that PR if CI passes" authorizes
 *that* PR on *that* condition — not the next one, and not if CI is red.
 Record the authorization verbatim in `afk_session.md` so a later turn (or a
 resumed session) can check the exact wording rather than a paraphrase.
+
+**A sub-agent classified it as low; I think it's medium.** Disagreement between
+a worker and the supervisor resolves to the **higher** tier, always, and without
+further deliberation. The worker sees one task; the supervisor sees the absence.
+
+**The approach needs a human at some point.** Not a tier question at all — it is
+the §4 guard, and it fires *before* tiering. Pick a non-interactive approach, or
+block it now. Never start work you know will stall: an agent 80% through a task
+that needs an OAuth flow has spent the window and produced nothing.
+
+**A question arose that I'd normally ask the user.** Route it to the council
+(SKILL.md §6) — that is the medium path, not a block, and not a stall. Except:
+if it is something only the user knows (business context, intent, priority), the
+council cannot invent it. Block it and put it in the briefing.
+
+**The council returned LOW confidence.** Block. Do not "proceed cautiously". A
+low-confidence verdict is the council reporting it lacked the information to
+decide; proceeding anyway discards the one useful thing it produced.
+
+**The council returned HIGH confidence on a high-tier action.** Still blocked.
+Record the verdict inside the `BLOCKED_` file as a recommendation, so the user
+can act on it in one keystroke. The council rules on what is **wise**; only the
+user **authorizes**. There is no verdict that crosses that line.

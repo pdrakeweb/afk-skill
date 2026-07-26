@@ -42,16 +42,21 @@ Then `git tag vX.Y.Z`.
 
 ## The contract with council-skill
 
-`afk` parses the last line of a council run:
+`afk` parses these trailer lines from a council run:
 
 ```
 COUNCIL_VERDICT: <option> | CONFIDENCE: <high|medium|low>
+COUNCIL_NEEDS: <comma-separated missing facts, or none>
 ```
 
 If council-skill changes that format, this skill breaks silently — the
 medium-stakes path would fall through to the unverified fallback without
-saying why. Any change to that line is a **major** bump in *both* repos, made
-in the same session.
+saying why. Any change to those lines is a **major** bump in *both* repos, made
+in the same session. Adding a new trailer is additive and only a minor bump.
+
+`COUNCIL_NEEDS` feeds the "questions the council couldn't answer" section of the
+return briefing. Never drop it silently — those are the highest-value items in
+the whole briefing, because they are the ones only the user can close.
 
 Confidence handling is deliberate and must not be loosened:
 
@@ -86,6 +91,52 @@ Confidence handling is deliberate and must not be loosened:
 - **`afk_session.md` `Status: ACTIVE`** is the source of truth that AFK rules
   are in force. A new session finding it must resume under AFK rules — a
   message arriving is not proof the user has returned.
+- **Never act outside a recorded permission grant, or outside its scope.** The
+  grant is the authorization. "They granted `alembic upgrade` and this is an
+  `alembic upgrade`" is not the test if the recorded scope said dev-only. Scope
+  creep inside a grant is the most plausible way this skill causes real damage.
+- **An unanswered permission request is a denial**, recorded as one.
+- **The supervisor must not do the work.** The moment it picks up a task it can
+  no longer notice a stall, and the stall it misses is the expensive one. If the
+  queue is empty and a worker is still running, wait — do not find something to
+  do.
+- **Never respawn a stalled agent with the same brief.** A retry without a
+  diagnosis is the same failure at the same cost. If you cannot name what went
+  wrong, that is a block, not a retry. Two retries maximum.
+- **Never `TaskOutput` a local sub-agent's `.output` file** — it symlinks the
+  full sub-agent transcript and will flood the supervisor's context, which is
+  the one thing that has to survive the whole absence.
+- **Worker/supervisor tier disagreement resolves to the higher tier**, always,
+  without further deliberation. The worker sees one task; the supervisor sees
+  the absence.
+
+## The Remote Control limitation — do not paper over this
+
+`/remote-control` is a **UI command**. No agent — main, sub, or watchdog — can
+invoke it; the Skill tool rejects it outright. The watchdog therefore **detects
+and reports**; it does not re-enable.
+
+Do not rewrite the watchdog section to imply self-healing, and do not have it
+retry the connection through the absence. On loss it: logs with a timestamp,
+switches to conservative mode from that moment, tries one push in case the
+channel is only partly degraded, and puts the re-enable request at the top of
+the return briefing with the window during which nothing could reach the user.
+
+A `PushNotification` "not sent" result is **ambiguous** — the tool also skips
+when the user is actively at the terminal. Never report Remote Control as
+connected, or as lost, on a single result. The watchdog requires two consecutive
+checks before declaring loss, and the departure preflight asks the user rather
+than inferring.
+
+## Conservative mode
+
+No Remote Control (at departure or after loss) → **every medium-stakes decision
+that is not trivially reversible is treated as high**. This is not caution
+theatre: with no notification channel an error compounds unwatched for the whole
+remaining window and the user cannot be told. The value of a medium decision is
+roughly constant; its risk rises sharply, so the threshold moves with it.
+
+"Trivially reversible" = one command, no external state, nothing built on top.
 
 ## Testing this skill
 

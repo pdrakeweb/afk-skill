@@ -8,8 +8,16 @@ make sure every decision taken in your absence is one you'd have agreed with —
 and that every decision that isn't is still waiting for you, undamaged, when
 you get back.
 
+Two failure modes matter equally, and most of the skill is about the second:
+
+1. **Doing something unwanted** — guarded by the stakes tiers.
+2. **Getting stuck and doing nothing** — guarded by the departure sequence, the
+   human-approval guard, the delegation supervisor, and routing questions to the
+   council instead of to you.
+
 > The default when uncertain is **stop and log**, not proceed. Unfinished work
-> is cheap. An unwanted irreversible action is not.
+> is cheap. An unwanted irreversible action is not. But an agent frozen for six
+> hours on a permission prompt is a *wasted* absence, and that is preventable.
 
 ## Triggering
 
@@ -17,6 +25,7 @@ Say any of:
 
 ```
 I'm going AFK for 3 hours
+AFK mode
 heading out, back around 5
 I'll be offline until tomorrow morning
 going dark until Monday — no comms
@@ -27,11 +36,26 @@ On return, `"I'm back"` / `"what did I miss"` runs the return briefing.
 
 ## What it does
 
-**1 — Pre-departure checklist.** Surfaces every pending decision that needs you
-*before* you leave, each with a recommended default so you can clear them with
-one word. Confirms the work queue (which becomes the scope boundary for the
-whole absence), records any pre-authorizations **verbatim**, and notes what
-you've reserved as off-limits.
+**1 — Departure sequence.** Everything here can *only* be done while you're
+present, so it runs first and fast:
+
+- **Remote Control preflight.** Checks whether notifications can reach your
+  phone. It **cannot enable Remote Control** — `/remote-control` is a UI
+  command no agent can invoke — so it tells you to run it before you go. The
+  answer changes behaviour: with no channel, the skill runs in **conservative
+  mode**, where medium decisions that aren't trivially reversible get blocked,
+  because an error would compound unwatched for the whole window.
+- **Expertise questions, asked immediately.** Everything needing *your specific
+  knowledge* — business context, intent behind existing code, whether a
+  constraint is real — batched into one list with defaults. Not things it could
+  research or council; things only you know.
+- **Permission pre-authorization sweep.** A permission prompt while you're away
+  is a stalled session. It enumerates the specific commands, network access, and
+  MCP servers the queued work will hit and gets them approved in one batch.
+  Grants are recorded **verbatim with their scope** — a grant of "`alembic
+  upgrade` on dev" is not a grant on staging. An unanswered request is a denial.
+- Then the ordinary pending decisions, the work queue (the scope boundary for
+  the whole absence), and the watchdog.
 
 **2 — Stakes tiers.** Every decision is classified before it is acted on. On a
 boundary, it goes to the **higher** tier.
@@ -44,40 +68,98 @@ boundary, it goes to the **higher** tier.
 
 There is **no confidence level that unlocks the high tier** — not even a
 high-confidence council verdict. The council rules on what is *wise*, not on
-what you have *authorized*.
+what you have *authorized*. The verdict goes *inside* the `BLOCKED_` file as a
+recommendation, so you can act on it in one keystroke when you're back.
 
-**3 — Decision log.** Every decision (not every action) goes to
+**3 — Questions go to the council, not to you.** Any question that would
+normally have produced a "which would you prefer?" turn — from the supervisor or
+any sub-agent — is packaged as a council brief and run instead. That's the rule
+that keeps the session moving. Three exceptions: high-tier things (blocked),
+things only you know (blocked, and they should have been caught at departure),
+and things answerable by just looking (go look).
+
+**4 — Human-approval guard.** Most AFK failures aren't bad decisions; they're an
+agent 80% through an approach that turns out to need a human. So before starting
+anything: *does this approach require a human at any point?* If yes, pick a
+different approach now or block it now. Ships with a table of the usual
+offenders — `git rebase -i`, `npm login`, OAuth, `sudo`, CAPTCHAs, bare `npm
+install` — and their non-interactive alternatives. Never disables a safety check
+to dodge a prompt.
+
+**5 — Delegated execution.** The main agent **doesn't do the work**. It spawns a
+background sub-agent per queue item and supervises: watching for stalls,
+`TaskStop`-ing stuck workers, and respawning with an explicit failure brief
+("previous attempt died at `npm install` waiting on a peer-dep prompt — use
+`npm ci`; if the lockfile is stale that's a BLOCK, not a thing to resolve").
+
+An agent stuck on a permission prompt *cannot report that it's stuck* — that's
+what being stuck means — so something outside it has to notice. An agent busy
+doing the work has no attention left to notice, and its context fills. Two
+retries maximum, each with new information; never the same brief twice. Three
+failures is a signal about the approach, not the agent.
+
+Sub-agents are briefed to **return, not ask**: "returning with a question is a
+successful outcome and costs the session nothing; stalling costs it hours."
+
+**6 — Decision log.** Every decision (not every action) goes to
 `afk_log_YYYY-MM-DD.md` with rationale, alternatives considered, and how to
 reverse it. Logged *before* acting, so a crash mid-action leaves a recoverable
 record of intent.
 
-**4 — Comms.** Acknowledge-only by default: *"Pete is AFK until ~17:00. I've
+**7 — Comms.** Acknowledge-only by default: *"Pete is AFK until ~17:00. I've
 flagged this for him."* Never agrees to a deadline, scope, price, or meeting;
 never speaks to your availability or opinions; never initiates outbound contact.
+Anything beyond an acknowledgement is a medium-stakes decision — councilled or
+blocked.
 
-**5 — Return briefing.** Blocked items first, always — never buried under a
-list of accomplishments. Then items needing review, completed work, decision
-counts, messages, and anything left in flight. Then it stops and waits: you
-being back is not an approval.
+**8 — Return briefing.** Ordered so anything needing action sits above anything
+that's merely news: do-this-first → blocked → questions the council couldn't
+answer → needs review → completed → decisions → **stalls and retries** →
+messages → in flight. Then it stops and waits: you being back is not an
+approval.
+
+The stalls section is where the *next* absence gets better — a stall on a
+missing permission is a permission to pre-authorize next time, and it says so
+explicitly rather than leaving you to infer it from a symptom.
+
+## The watchdog, and what it honestly can't do
+
+Saying "AFK mode" arms a long-lived background agent whose only job is to watch
+— no work, so its context stays clean enough to last the absence. It watches for
+Remote Control loss, stalled sub-agents, and queue exhaustion.
+
+**On Remote Control loss it cannot self-heal.** `/remote-control` is a UI
+command; no agent, main or sub, can invoke it. So it logs the loss with a
+timestamp, switches the session to conservative mode from that moment (the tier
+boundary moves because the safety net is gone), tries one push anyway in case
+the channel is only partly degraded, and puts *"re-run `/remote-control`"* at the
+very top of your return briefing with the window during which nothing could
+reach you. It does not spend the absence retrying.
 
 ## Council integration, and the fallback
 
-Medium-stakes decisions are delegated to the
-[`council`](https://github.com/pdrakeweb/council-skill) skill — three debaters
-in clean parallel contexts (Advocate, Skeptic, Pragmatist) and a Judge who
-rules with a confidence level. AFK reads the machine-readable verdict line and:
+Medium-stakes decisions **and every question that arises** go to the
+[`council`](https://github.com/pdrakeweb/council-skill) skill — debaters in
+clean parallel contexts who then cross-examine each other, and a Judge who rules
+with a confidence level. AFK reads the machine-readable verdict line and:
 
 - **high / medium** confidence → proceed with the verdict's option
 - **low** confidence → **do not proceed.** Block and defer. A low-confidence
   verdict is the council saying it lacks the information to decide; acting
   anyway throws away the only useful signal it produced.
 
+Every `COUNCIL_NEEDS` item — the facts the council lacked — is carried into your
+return briefing as "questions the council couldn't answer". Those are precisely
+the things worth your attention.
+
 **If the council skill is not installed**, medium-stakes decisions fall back to
 best-effort: reason through the case-for, failure modes, and feasibility *in
 writing*, act only at the easily-reversible end of medium, and log the entry
 flagged `⚠ UNVERIFIED — single-model judgement only`. Every unverified decision
 gets its own heading in the return briefing, so you can see at a glance exactly
-which calls were made without adversarial review.
+which calls were made without adversarial review. Questions then have nowhere to
+route, so the threshold tightens: a question that would have been councilled and
+can't be is a block unless it's trivially reversible.
 
 ## Files it writes
 
@@ -85,12 +167,13 @@ Into the working directory, not the repo:
 
 | File | Purpose |
 |---|---|
-| `afk_session.md` | Departure time, expected return, queue, pre-authorizations, `ACTIVE`/`CLOSED` |
-| `afk_log_YYYY-MM-DD.md` | Every decision: tier, rationale, alternatives, reversal |
-| `BLOCKED_<YYYY-MM-DDTHH-MM>.md` | One per blocked decision: what's needed, recommendation, current state |
+| `afk_session.md` | Departure/return times, Remote Control state, mode, work queue, **permission grants and denials verbatim with scope**, expertise answers, pre-authorizations, `ACTIVE`/`CLOSED` |
+| `afk_log_YYYY-MM-DD.md` | Decisions (tier, rationale, alternatives, reversal), **stalls and retries**, infrastructure events, messages |
+| `BLOCKED_<YYYY-MM-DDTHH-MM>.md` | One per blocked decision: what's needed, the council's recommendation, exact current state |
 
 `afk_session.md` staying `ACTIVE` is what lets a fresh session resume under AFK
-rules rather than assuming you're back because something got typed.
+rules rather than assuming you're back because something got typed — you may
+just be checking in from a phone.
 
 ## Install
 
