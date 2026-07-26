@@ -20,6 +20,7 @@ Remote Control state change).
 - **Council available:** yes
 - **Watchdog:** armed (agent `afk-watchdog`)
 - **Log:** afk_log_2026-07-26.md
+- **Progress log:** afk_progress.md (started 12:40 on going dark)
 - **Status:** ACTIVE
 
 ## Work queue (scope boundary — confirmed at departure)
@@ -52,6 +53,16 @@ Record grants, denials, expertise answers, and pre-authorizations **verbatim**.
 A paraphrase drifts; the exact words are what a borderline action gets checked
 against six hours later. **An unanswered permission request is a denial** —
 record it as one.
+
+`Status:` is the **takeover token** (`references/handoff.md`) — exactly one
+session may hold it:
+
+| Status | Meaning |
+|---|---|
+| `ACTIVE` | This session is working. AFK rules in force. |
+| `HANDING_OFF` | A takeover was requested. **Start nothing new.** Quiescing, then writing the dump. |
+| `HANDED_OFF` | Dump written. This session is done and must not resume. |
+| `CLOSED` | The user returned and the briefing was delivered. |
 
 ---
 
@@ -271,6 +282,194 @@ the session nothing; stalling costs it hours.
 
 REPORT: decisions and rationale, not narration. The supervisor writes the log.
 ```
+
+---
+
+## `afk_progress.md` — the dark-session running log
+
+Started when Remote Control is lost. Append-only, newest at the bottom, safe to
+`tail -f`. Never rewrite it — someone may be tailing, and a rewrite makes the
+tail lie.
+
+```markdown
+# AFK progress — dark since 2026-07-26T12:40Z
+Remote Control dropped. I cannot reach you and cannot re-enable it
+(`/remote-control` is a UI command no agent can invoke).
+
+**Follow along:**   tail -f afk_progress.md
+**Take over:**      start a new Claude Code session in this directory with
+                    Remote Control working, and say "take over the AFK session".
+
+Session: afk_session.md · Decisions: afk_log_2026-07-26.md · Blocked: BLOCKED_*.md
+
+---
+- `2026-07-26T12:40Z` — went dark; conservative mode on; takeover listener armed
+- `2026-07-26T12:42Z` — heartbeat · supervisor alive · working
+- `2026-07-26T12:43Z` — spawned `queue-worker` — retry backoff in queue/worker.py
+- `2026-07-26T12:44Z` — heartbeat · supervisor alive · working
+- `2026-07-26T12:46Z` — heartbeat · supervisor alive · working
+- `2026-07-26T12:51Z` — `queue-worker` returned a question (public interface) → council
+- `2026-07-26T12:53Z` — council: MEDIUM, additive overload; respawned with the verdict
+- `2026-07-26T12:55Z` — heartbeat · supervisor alive · working
+- `2026-07-26T13:04Z` — decision logged: additive overload for Session.refresh()
+- `2026-07-26T13:06Z` — STALL: `queue-worker` silent 20m past window
+- `2026-07-26T13:07Z` — stopped `queue-worker`; npm install peer-dep prompt; retrying with npm ci
+```
+
+**The heartbeat is the load-bearing part.** Without it, "no entries" is
+ambiguous between *nothing is happening* and *the session is dead* — and those
+demand opposite responses. Run it detached so it costs no context:
+
+```bash
+# Bash tool, run_in_background: true
+while [ ! -f afk_handoff/TAKEOVER_ACK.md ]; do
+  printf -- '- `%s` — heartbeat · supervisor alive · %s\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${AFK_PHASE:-working}" >> afk_progress.md
+  sleep 120
+done
+```
+
+Never write a secret, token, or credential into this file. The user may paste it
+into another window.
+
+---
+
+## `afk_handoff/TAKEOVER_REQUEST.md`
+
+Written by the **new** session. Its appearance is the old session's signal.
+
+```markdown
+# TAKEOVER REQUESTED
+- **At:** 2026-07-26T16:52Z
+- **By:** new Claude Code session, Remote Control **connected**
+- **Working dir:** C:\Users\pdrak\Documents\Source\myproject
+- **User present:** yes — Pete confirmed the takeover
+
+## What I need
+1. Stop starting new work NOW. Set Status: HANDING_OFF.
+2. TaskStop your sub-agents; note what each was doing and how far it got.
+3. Get the tree describable — WIP-commit or stash in-flight work.
+4. Write afk_handoff/HANDOFF_PROMPT.md (all 9 sections).
+5. Write afk_handoff/HANDOFF_COMPLETE **last**.
+6. Status: HANDED_OFF, then stop. Do not resume.
+
+## Timeout
+I will wait until **17:02Z** (10 minutes). After that I proceed with a cold
+takeover from your artifacts, which loses your "tried and failed" knowledge —
+so a partial dump beats no dump. If you are running short, write the sections
+in order and sentinel what you have.
+```
+
+---
+
+## `afk_handoff/HANDOFF_PROMPT.md` — the knowledge dump
+
+Written by the **old** session. It is a **prompt**, not a report: it opens in
+the imperative so the new session can ingest it verbatim.
+
+````markdown
+You are taking over an AFK session that lost Remote Control and went dark.
+Read this in full before touching anything. Verify §1 against `git` before
+acting — believe git over this file; it is a self-report written by a session
+that had just been interrupted.
+
+## 1. Identity and state
+- **Repo / working dir:** C:\Users\pdrak\Documents\Source\myproject
+- **Branch:** `hotfix/session-leak`
+- **HEAD:** a3f9c21 — `WIP: retry backoff, cap not yet implemented`
+- **git status:** clean (everything WIP-committed during quiesce)
+- **Old session:** started 09:12, went dark 12:40, handed off 16:53
+- **Sub-agents stopped at quiesce:** `queue-worker` (mid-edit on
+  `queue/worker.py`, backoff written, cap not started)
+
+## 2. The original mandate — VERBATIM, do not paraphrase
+Work queue (scope boundary):
+1. Fix the session leak in auth/session.py — DONE
+2. Add retry backoff to queue/worker.py — IN FLIGHT
+3. Triage the flaky test_reconnect — DONE
+
+Permission grants (verbatim, with scope):
+- GRANTED: `pytest`, `pytest -k` — any
+- GRANTED: `npm ci` — repo root only
+- GRANTED: `alembic upgrade head` — **local dev DB only, NOT staging**
+- DENIED:  anything under `deploy/`
+- DENIED:  `docker push` (unanswered at departure → treated as denied)
+
+Expertise answers:
+- "legacy_email — yes, the billing exporter reads it. Leave it."
+- "30s retry cap is a guess, tune it freely."
+
+Pre-authorized: "quarantine the flaky test and open an issue, don't chase it"
+Reserved: "don't touch the billing code while I'm out"
+
+**These carry over exactly. Do not widen or narrow them.**
+
+## 3. Done
+- Session leak fixed — `auth/session.py:88`, 3 tests — commit `7f2b1e9`
+- `test_reconnect` quarantined + issue #241 — commit `a91f3c2`
+- Job-queue locking on Postgres advisory locks — commit `c4d0a17`
+
+## 4. Tried and failed, and why — READ THIS BEFORE DOING ANYTHING
+*The most valuable section here. Without it your first act is to repeat a
+failure I already paid for.*
+- **`npm install` stalls** on a peer-dependency prompt. Use
+  `npm ci --frozen-lockfile`. If the lockfile is stale that is a BLOCK.
+- **`alembic upgrade` against staging is out of scope** — the grant is dev-only.
+  One sub-agent burned itself on this; see BLOCKED_2026-07-26T11-25.md.
+- **Moving fixtures between `conftest.py` and `fixtures/db.py`** re-introduces a
+  circular import. An agent looped on this for 40 minutes. Don't.
+
+## 5. In flight — exactly where I stopped
+`queue/worker.py`: exponential backoff implemented (lines 44-71). The 30s cap is
+**not** implemented. Tests written for the first three retries; no test for the
+cap. WIP-committed as `a3f9c21`. Suite currently green but the cap is untested
+because it does not exist yet.
+
+## 6. Decisions
+Load-bearing ones inline; the rest in `afk_log_2026-07-26.md`.
+- **10:47 — Postgres advisory locks over Redis** (medium, council MEDIUM,
+  2 rounds). Reversible via revert `c4d0a17`. Open need: real p99 job duration.
+- **13:04 — additive overload for `Session.refresh()`** rather than changing the
+  signature (medium, council MEDIUM). Reversible: delete the overload.
+
+## 7. Blocked
+- `BLOCKED_2026-07-26T11-40.md` — push the hotfix to main. Council said push
+  (HIGH), still blocked: high tier, only the user authorizes.
+- `BLOCKED_2026-07-26T11-25.md` — staging migration, out-of-scope grant.
+
+## 8. Open questions — THE USER IS PRESENT NOW, ASK THESE FIRST
+- Is `legacy_email` read outside this repo? *(blocks migration 0043)*
+- Actual p99 job duration under load? *(council: would have been HIGH)*
+
+## 9. Next action
+Implement the 30s cap in `queue/worker.py` and add the test for it. Everything
+else in the queue is done or blocked. Low-stakes; the surrounding decisions are
+already made and logged.
+````
+
+---
+
+## `afk_handoff/TAKEOVER_ACK.md`
+
+Written by the **new** session after ingesting. Releases the old session and
+stops its heartbeat. Write it *before* beginning work — the interval between
+reading the dump and acknowledging is the only window where both sessions could
+plausibly act.
+
+```markdown
+# TAKEOVER ACKNOWLEDGED
+- **At:** 2026-07-26T16:58Z
+- **Dump ingested:** afk_handoff/HANDOFF_PROMPT.md
+- **Verified against git:** HEAD a3f9c21 ✓ · branch hotfix/session-leak ✓ ·
+  tree clean ✓ — no discrepancies
+- **New session log:** afk_log_2026-07-26.md `## Session 2`
+
+You are released. Stop the heartbeat and exit. Do not resume work.
+```
+
+If the dump disagreed with git, say exactly how — a discrepancy usually means a
+stash or WIP commit did not go the way the old session thought, and that is
+worth knowing before anything is touched.
 
 ---
 

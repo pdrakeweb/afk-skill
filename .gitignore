@@ -10,6 +10,8 @@ afk/data/*
 # these are session records, never committed to the skill repo
 afk_log_*.md
 afk_session.md
+afk_progress.md
+afk_handoff/
 BLOCKED_*.md
 council_log_*.md
 

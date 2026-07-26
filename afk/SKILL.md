@@ -1,19 +1,21 @@
 ---
 name: "afk"
-version: "0.2.0"
+version: "0.3.0"
 description: >
   Govern autonomous work while the user is away from keyboard. Triggers on "I'm
-  going AFK", "AFK mode", "operate in AFK mode", "I'm AFK for 3 hours",
-  "heading out", "stepping away", "I'll be offline until tomorrow", "back in an
-  hour", "no comms until Monday", "going dark" — extract the duration if given.
-  On activation it runs a departure sequence while the user can still act:
-  verifies Remote Control, asks every question needing their expertise, and
-  pre-authorizes the permissions the queued work will hit. While away it
-  delegates work to supervised sub-agents, routes every arising question and
-  medium-stakes decision to the council skill instead of stalling, refuses
-  approaches that need human approval mid-flight, logs every decision, and
-  BLOCKS anything irreversible. Also triggers on "I'm back", "what did I miss",
-  "status while I was out" to deliver the return briefing.
+  going AFK", "AFK mode", "I'm AFK for 3 hours", "heading out", "stepping away",
+  "I'll be offline until tomorrow", "back in an hour", "going dark" — extract
+  the duration if given. On activation it runs a departure sequence while the
+  user can still act: verifies Remote Control, asks every question needing their
+  expertise, and pre-authorizes the permissions the queued work will hit. While
+  away it delegates work to supervised sub-agents, routes arising questions to
+  the council skill instead of stalling, refuses approaches needing human
+  approval, logs every decision, and BLOCKS anything irreversible. If Remote
+  Control drops it goes dark: starts a tailable progress log and listens for a
+  takeover. Also triggers on "take over the AFK session", "resume the AFK
+  session", "the other session lost connection" to take over from a dark session
+  via an on-disk knowledge dump, and on "I'm back", "what did I miss" to deliver
+  the return briefing.
 ---
 
 # AFK
@@ -201,11 +203,122 @@ command; no agent can invoke it. So it:
    — the tier boundary moves because the safety net is gone,
 3. attempts one `PushNotification` anyway, in case the channel is only
    partially degraded,
-4. puts **"re-run `/remote-control`"** at the very top of the return briefing,
+4. **goes dark** — starts the progress log and arms the takeover listener (§2.1),
+5. puts **"re-run `/remote-control`"** at the very top of the return briefing,
    with the window during which nothing could reach them.
 
 Do not spend the absence retrying the connection. Log it once, tighten the
-rules, keep working.
+rules, go dark, keep working.
+
+### 2.1 Going dark
+
+A session that loses Remote Control is not broken — it is **unobservable**,
+which is worse, because it looks identical to a session that died. Going dark
+converts that into two things the user can actually do. Full protocol:
+`references/handoff.md`.
+
+**Start `afk_progress.md`** — an append-only running log they can `tail -f` from
+anywhere. Its header states, in the only channel left, both of their options:
+
+```
+**Follow along:**   tail -f afk_progress.md
+**Take over:**      start a new Claude Code session in this directory with
+                    Remote Control working, and say "take over the AFK session".
+```
+
+One line per state change — task started, sub-agent spawned or returned,
+decision logged, stall, block, council convened — plus a **heartbeat every 2
+minutes even when nothing happens.** The heartbeat is the load-bearing part:
+without it, "no entries" is ambiguous between *nothing is happening* and *the
+session is dead*, and those demand opposite responses from the user. It runs as
+a detached background loop so it costs the supervisor no context, and it
+self-terminates on takeover.
+
+Never write a secret, token, or credential into the progress log — the user may
+paste it into another window.
+
+**Arm the takeover listener.** The session cannot poll; it is an agent, not a
+daemon. So it arms a one-shot background watcher (`Bash`, `run_in_background`)
+whose *completion notification* is the wake-up:
+
+```bash
+until [ -f afk_handoff/TAKEOVER_REQUEST.md ]; do sleep 15; done
+echo "TAKEOVER REQUESTED"; head -20 afk_handoff/TAKEOVER_REQUEST.md
+```
+
+A single `until` loop that exits on the condition is exactly right: one
+notification, no polling cost, and the exit *is* the signal. Do not use
+`Monitor` — that is for streams of recurring events, and an unbounded watcher
+would sit armed long after this event fired.
+
+### 2.2 Handing off
+
+When the listener fires, **quiesce before describing** — this order is the
+correctness property, not a preference:
+
+1. `afk_session.md` → `Status: HANDING_OFF`. From that line on, **start nothing
+   new**: no task, no sub-agent, no council.
+2. `TaskStop` every sub-agent; note what each was doing and how far it got.
+3. Get the tree describable — commit in-flight work as `WIP:` or stash it.
+   Record branch, HEAD sha, and `git status`.
+4. Write `afk_handoff/HANDOFF_PROMPT.md` — the knowledge dump, written as an
+   **ingestible prompt** addressed to the new session in the imperative.
+5. Write `afk_handoff/HANDOFF_COMPLETE` **last**, after the prompt file is
+   closed, so a reader can never observe a partial dump.
+6. `Status: HANDED_OFF`, final progress-log line, then **stop**. Not "one small
+   thing while I wait" — that one small thing is the split-brain.
+
+A dump written before quiescing describes a world that no longer exists by the
+time it is read. The single highest-value section of the dump is **"tried and
+failed, and why"**: without it, the new session's first act is to repeat a
+failure the old session already paid for, and the takeover is a net loss.
+
+### 2.3 Taking over
+
+Triggered by "take over the AFK session" or landing in a directory with an
+`ACTIVE` session and a dark marker.
+
+Read `afk_session.md`, the tail of `afk_progress.md`, the AFK log, every
+`BLOCKED_*.md`, and `git status`/`git log`. Then decide **warm or cold** on the
+heartbeat age — on evidence, not a guess:
+
+| Last heartbeat | Old session | Action |
+|---|---|---|
+| < 5 min | **alive** | Warm takeover — request the dump. **Never seize.** |
+| 5–15 min | ambiguous | Request, wait the full 10-minute timeout. Assume alive. |
+| > 15 min / no log | dead | Cold takeover — reconstruct from artifacts. |
+
+Confirm with the user first — they are present, which is the whole point of the
+new session — and offer "just watch" as a real option; `tail -f` costs nothing
+and lets the old session finish. Then write `TAKEOVER_REQUEST.md`, wait for the
+sentinel, ingest the dump, **verify it against git** (believe git over the dump —
+it is a self-report from a session that had just been interrupted), write
+`TAKEOVER_ACK.md`, and only then resume.
+
+Carry the permission grants and reserved items over **verbatim**. The original
+authorization transfers exactly — neither widened nor narrowed by the handoff.
+
+Lead the user's briefing with the **open questions**, not a status report: this
+is the first chance in hours to close them.
+
+### 2.4 Split-brain — the one thing that must not happen
+
+Two sessions acting on one working tree corrupts state in ways no log can
+reconstruct. `afk_session.md` `Status:` is the **token**, and exactly one session
+holds it: `ACTIVE` → `HANDING_OFF` → `HANDED_OFF`.
+
+- The old session stops acting the instant it writes `HANDING_OFF` — *before*
+  writing the dump, which takes minutes.
+- The new session does not act until it has written `TAKEOVER_ACK.md`.
+- `TAKEOVER_ACK.md` existing stops the old session **unconditionally** —
+  mid-task, no exceptions, no finishing up.
+- An unacknowledged old session **stays stopped**. It never resumes on its own;
+  a resume-on-timeout is precisely the double-actor case.
+- Neither session pushes, merges, or deploys during a handoff.
+
+**If you are ever unsure which session holds the token, stop and ask the user.**
+They are present in at least one of the two — that is why a takeover was
+possible at all.
 
 ---
 
@@ -563,5 +676,7 @@ Rules:
 - `references/tiers.md` — worked classifications and boundary cases.
 - `references/delegation.md` — the supervisor protocol: spawn briefs, stall
   detection, cancel/retry, worked failure cases.
+- `references/handoff.md` — the full takeover protocol: progress log, request,
+  knowledge dump, stand-down, cold takeover, split-brain rules.
 - `references/templates.md` — verbatim templates for every file this skill
   writes.

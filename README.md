@@ -129,12 +129,88 @@ Saying "AFK mode" arms a long-lived background agent whose only job is to watch
 Remote Control loss, stalled sub-agents, and queue exhaustion.
 
 **On Remote Control loss it cannot self-heal.** `/remote-control` is a UI
-command; no agent, main or sub, can invoke it. So it logs the loss with a
-timestamp, switches the session to conservative mode from that moment (the tier
-boundary moves because the safety net is gone), tries one push anyway in case
-the channel is only partly degraded, and puts *"re-run `/remote-control`"* at the
-very top of your return briefing with the window during which nothing could
-reach you. It does not spend the absence retrying.
+command; no agent, main or sub, can invoke it. So it logs the loss, switches to
+conservative mode from that moment (the tier boundary moves because the safety
+net is gone), tries one push anyway in case the channel is only partly degraded,
+**goes dark**, and puts *"re-run `/remote-control`"* at the top of your return
+briefing with the window during which nothing could reach you.
+
+## Going dark, and taking over
+
+A session that loses Remote Control isn't broken — it's **unobservable**, which
+is worse, because it looks exactly like a session that died. Going dark turns
+that into two things you can actually do.
+
+### Follow along
+
+It starts `afk_progress.md` — append-only, tailable from anywhere:
+
+```bash
+tail -f afk_progress.md
+```
+
+One line per state change, plus a **heartbeat every 2 minutes even when nothing
+happens**. The heartbeat is the load-bearing part: without it, "no entries" is
+ambiguous between *nothing is happening* and *the session is dead*, and those
+demand opposite responses from you. It runs detached, so it costs the supervisor
+no context.
+
+### Or take over
+
+Start a new Claude Code session in the same directory with Remote Control
+working and say **"take over the AFK session"**. The two sessions share a
+filesystem and nothing else, so every signal is a file:
+
+| File | Written by | Meaning |
+|---|---|---|
+| `afk_handoff/TAKEOVER_REQUEST.md` | **new** | "I have Remote Control. Dump and stand down." |
+| `afk_handoff/HANDOFF_PROMPT.md` | old | The knowledge dump, written as an ingestible prompt |
+| `afk_handoff/HANDOFF_COMPLETE` | old | Sentinel, written **last** — until it exists the dump may be partial |
+| `afk_handoff/TAKEOVER_ACK.md` | **new** | "I have it. Stop." |
+
+The old session can't poll — it's an agent, not a daemon — so it arms a one-shot
+background `until` loop watching for the request file. That loop's *completion
+notification* is what wakes it.
+
+On waking it **quiesces before describing**: stops sub-agents, WIP-commits or
+stashes in-flight work, *then* writes the dump. That order is the correctness
+property — a dump written before quiescing describes a world that no longer
+exists by the time it's read.
+
+The dump's most valuable section is **"tried and failed, and why"**. Without it
+the new session's first act is to repeat a failure the old one already paid for,
+and the takeover is a net loss.
+
+### Warm, or cold
+
+The new session decides on evidence, not a guess — the heartbeat age:
+
+| Last heartbeat | Old session | Action |
+|---|---|---|
+| < 5 min | **alive** | Warm takeover — request the dump. **Never seize.** |
+| 5–15 min | ambiguous | Request, wait the full 10-minute timeout |
+| > 15 min / no log | dead | Cold takeover — reconstruct from artifacts |
+
+Cold takeover is a *reconstruction*, and everything it produces is labelled as
+such. It trusts git over every other artifact, and the "tried and failed"
+knowledge is simply gone — which is the real cost, and the briefing says so.
+
+The new session verifies the dump against `git` before acting (**believe git** —
+the dump is a self-report from a session that had just been interrupted), and
+carries the permission grants over **verbatim**: the original authorization
+transfers exactly, neither widened nor narrowed. Then it leads your briefing
+with the **open questions**, because you're finally there to answer them.
+
+### Split-brain
+
+Two sessions acting on one working tree corrupts state in ways no log can
+reconstruct. `afk_session.md` `Status:` is the token — `ACTIVE` → `HANDING_OFF`
+→ `HANDED_OFF` — and exactly one session holds it. The old session stops the
+instant it writes `HANDING_OFF`, *before* the dump. The new one doesn't act
+until it has written the ack. `TAKEOVER_ACK.md` stops the old session
+unconditionally, mid-task, no finishing up. An unacknowledged old session stays
+stopped forever rather than resuming on a timeout — a resume-on-timeout is
+exactly the double-actor case.
 
 ## Council integration, and the fallback
 
@@ -167,9 +243,11 @@ Into the working directory, not the repo:
 
 | File | Purpose |
 |---|---|
-| `afk_session.md` | Departure/return times, Remote Control state, mode, work queue, **permission grants and denials verbatim with scope**, expertise answers, pre-authorizations, `ACTIVE`/`CLOSED` |
+| `afk_session.md` | Departure/return times, Remote Control state, mode, work queue, **permission grants and denials verbatim with scope**, expertise answers, pre-authorizations, and the takeover token `Status:` |
 | `afk_log_YYYY-MM-DD.md` | Decisions (tier, rationale, alternatives, reversal), **stalls and retries**, infrastructure events, messages |
 | `BLOCKED_<YYYY-MM-DDTHH-MM>.md` | One per blocked decision: what's needed, the council's recommendation, exact current state |
+| `afk_progress.md` | Only when dark. Append-only, tailable, heartbeated |
+| `afk_handoff/` | Only during a takeover. Request, dump, sentinel, ack |
 
 `afk_session.md` staying `ACTIVE` is what lets a fresh session resume under AFK
 rules rather than assuming you're back because something got typed — you may

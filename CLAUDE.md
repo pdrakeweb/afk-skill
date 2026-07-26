@@ -35,8 +35,10 @@ Both stamps must match or `build.ps1` refuses to package:
 
 - **patch** — wording, template tweaks, new worked examples in `references/`
 - **minor** — new sections, new comms postures, new log fields
-- **major** — changes to the tier boundaries, the `BLOCKED_` file contract, or
-  how a council verdict is consumed
+- **major** — changes to the tier boundaries, the `BLOCKED_` file contract, how
+  a council verdict is consumed, or **any change to the handoff file names,
+  their write order, or the `Status:` token values** (two sessions running
+  different skill versions must agree on these or the split-brain guards fail)
 
 Then `git tag vX.Y.Z`.
 
@@ -128,6 +130,45 @@ connected, or as lost, on a single result. The watchdog requires two consecutive
 checks before declaring loss, and the departure preflight asks the user rather
 than inferring.
 
+## Takeover — the split-brain invariants
+
+Full protocol in `afk/references/handoff.md`. These are the parts that must not
+be relaxed by a future edit, because each one is load-bearing against two
+sessions acting on one working tree:
+
+- **`afk_session.md` `Status:` is the token.** `ACTIVE` → `HANDING_OFF` →
+  `HANDED_OFF` → (new session) `ACTIVE`. Exactly one session holds it.
+- **Quiesce before describing.** The old session sets `HANDING_OFF`, stops
+  sub-agents, and WIP-commits or stashes *before* writing the dump. Reverse
+  these and the dump describes a world that no longer exists by the time it is
+  read — the most likely way this feature actively misleads someone.
+- **The sentinel is written last.** `HANDOFF_COMPLETE` only after
+  `HANDOFF_PROMPT.md` is closed, so a reader can never observe a partial dump.
+- **`TAKEOVER_ACK.md` is an unconditional stop.** Mid-task, no exceptions, no
+  finishing up.
+- **An unacknowledged old session stays stopped.** It never resumes on a
+  timeout. A resume-on-timeout *is* the double-actor case.
+- **Never seize from a heartbeat under 5 minutes old.** Waiting is cheap;
+  concurrent actors are not.
+- **Believe git over the dump.** The dump is a self-report written by a session
+  that had just been interrupted; the repository is ground truth. Record every
+  discrepancy — one usually means a stash or WIP commit did not go as the old
+  session thought.
+- **Grants transfer verbatim.** The takeover neither widens nor narrows the
+  original authorization. Re-deriving or summarizing them is how scope creep
+  gets laundered through a handoff.
+- **Neither session pushes, merges, or deploys during a handoff.**
+
+The **heartbeat is not decoration.** It is the only thing that distinguishes
+"nothing is happening" from "the session is dead", and the warm/cold decision
+rests entirely on it. If a future edit makes the progress log quieter, it breaks
+the takeover decision, not just the user's reading experience.
+
+The dump's **"tried and failed, and why"** section is the feature's actual
+payload. Everything else is reconstructible from artifacts and git; that section
+is not. A cold takeover loses it, and that is precisely why cold is the fallback
+rather than the default.
+
 ## Conservative mode
 
 No Remote Control (at departure or after loss) → **every medium-stakes decision
@@ -150,3 +191,14 @@ is a dry run:
 3. Say "I'm back" and confirm the briefing leads with the blocked item.
 4. With council-skill uninstalled, force a medium-stakes decision and confirm
    the log entry carries the `⚠ UNVERIFIED` flag and surfaces in the briefing.
+5. **Takeover, warm.** With a session running, `touch
+   afk_handoff/TAKEOVER_REQUEST.md` by hand. Confirm the old session wakes,
+   quiesces *before* writing the dump, and that `HANDOFF_COMPLETE` appears only
+   after `HANDOFF_PROMPT.md` is complete. Confirm the dump's §4 actually lists
+   what failed — an empty §4 on a session that hit a stall is the bug worth
+   catching.
+6. **Takeover, cold.** Kill a dark session outright, wait past 15 minutes, and
+   confirm the new session detects the stale heartbeat, says it is
+   reconstructing, and does not claim inferred facts as established ones.
+7. **Split-brain.** Write `TAKEOVER_ACK.md` while the old session is mid-task
+   and confirm it stops immediately rather than finishing.
