@@ -253,15 +253,34 @@ Into the working directory, not the repo:
 rules rather than assuming you're back because something got typed — you may
 just be checking in from a phone.
 
-## Install
+## Build and deploy
 
 ```powershell
-.\build.ps1          # → afk.skill
-.\build.ps1 -Zip     # → afk.skill + afk.zip
+.\build.ps1              # → afk.skill
+.\build.ps1 -Zip         # → afk.skill + afk.zip
+.\deploy.ps1             # build, then copy to <Dropbox>\Skills
+.\deploy.ps1 -DryRun     # show what would happen, write nothing
 ```
 
-Upload `afk.skill` via **Settings → Capabilities → Skills**, or drop the `afk/`
-directory into your Cowork skills directory. Install
+```bash
+./build.sh               # same, on macOS / Linux / Git Bash
+./build.sh --zip
+```
+
+`build.sh` and `build.ps1` produce **byte-identical archive contents**, so it
+doesn't matter which one runs. Both validate before packaging and refuse to
+build on a folder/frontmatter name mismatch, an illegal name, an empty or
+>1024-char description, or the two version stamps disagreeing.
+
+`deploy.ps1` runs the build first, so a failed validation aborts the deploy and
+a broken package never reaches the shared folder. It resolves Dropbox from
+`%LOCALAPPDATA%\Dropbox\info.json` and keeps the last 5 packages in
+`Skills\.backups\` — Dropbox syncs deletions too, so a bad overwrite propagates
+everywhere and a local backup is the fast way back. Override with
+`-Destination`.
+
+Then upload `afk.skill` via **Settings → Capabilities → Skills**, or drop the
+`afk/` directory into your Cowork skills directory. Install
 [`council-skill`](https://github.com/pdrakeweb/council-skill) alongside it for
 the medium-stakes path.
 

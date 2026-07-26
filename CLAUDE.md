@@ -23,8 +23,44 @@ What this repo **does** keep from the skeleton, because it applies:
 | Compact Markdown output | the return briefing and log entries |
 | Honest limitations stated in-skill | the `UNVERIFIED` flag when the council is absent |
 
-`build.ps1` here is byte-identical to council-skill's — it auto-discovers the
-skill directory, so it needs no per-repo edits. Fix it in one place and copy.
+## Build and deploy
+
+```powershell
+.\build.ps1              # → afk.skill
+.\deploy.ps1             # build + copy to <Dropbox>\Skills (keeps 5 backups)
+.\deploy.ps1 -DryRun
+```
+
+```bash
+./build.sh               # POSIX counterpart; byte-identical archive contents
+```
+
+`build.ps1`, `build.sh`, and `deploy.ps1` are **shared files** — generic, with
+no per-skill content, and byte-identical to council-skill's copies. They
+auto-discover the skill directory, so they need no per-repo edits: fix them in
+one repo and copy to the other (and port anything genuinely reusable back to
+claude-skill-skeleton).
+
+`deploy.ps1` runs the build first, so a failed validation aborts the deploy —
+a package that doesn't validate can never reach the shared Dropbox folder. It
+keeps 5 backups because Dropbox syncs deletions too.
+
+Two Windows traps these already handle; don't regress them:
+
+- **`python3` on PATH is usually the Microsoft Store alias stub.** It resolves
+  under `command -v` but exits non-zero telling you to install from the Store.
+  `build.sh` therefore probes each candidate by actually running it
+  (`python3 -c 'import zipfile'`) rather than trusting the name to resolve.
+  `zip` is also absent from a default Git Bash install, hence the fallback
+  chain zip → python → Compress-Archive.
+- **A PowerShell script that falls off its end does not set `$LASTEXITCODE`.**
+  A caller reads a stale value from some earlier native command instead, so
+  `build.ps1` ends with an explicit `exit 0` and `deploy.ps1` resets
+  `$LASTEXITCODE` before invoking it. Without both, deploy refuses good builds.
+
+These are repo-root files, **outside the skill directory**, so changing them
+does not require a version bump — the bump rule below is scoped to commits
+touching `afk/`.
 
 ## Versioning — bump on EVERY commit that touches `afk/`
 
