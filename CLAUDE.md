@@ -113,9 +113,20 @@ the whole briefing, because they are the ones only the user can close.
 Confidence handling is deliberate and must not be loosened:
 
 - `high` / `medium` → proceed with the verdict's option
-- `low` → **block and defer.** Never "proceed cautiously". A low-confidence
+- `low` → **block it and escalate it in the return briefing.** Never "proceed cautiously". A low-confidence
   verdict means the council could not decide on the information available;
   proceeding discards the one useful thing it produced.
+
+One further verdict value, additive in council-skill 0.3.0: `NONE`, always
+paired with `CONFIDENCE: low`, means the council produced no ruling (its
+Judge failed; the orchestrator emitted the trailer mechanically). It changes
+nothing about consumption — `low` blocks — and afk 0.4.0 names the case in
+its act-on-verdict steps so it does not have to be inferred.
+
+**Ship the pair together.** Companion changes in the two repos merge in the
+same session and are distributed together (both packages rebuilt and
+re-uploaded), so no installed copy consumes a format the other has not
+shipped.
 
 ## Invariants — these are the safety properties, not preferences
 
