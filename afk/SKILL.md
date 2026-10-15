@@ -1,6 +1,6 @@
 ---
 name: "afk"
-version: "0.4.0"
+version: "0.5.0"
 description: >
   Govern autonomous work while the user is away from keyboard. Triggers on "I'm
   going AFK", "AFK mode", "I'm AFK for 3 hours", "heading out", "stepping away",
@@ -517,6 +517,43 @@ all log entries, so the log stays in one voice and one file. A sub-agent's
 tier-classification is a **proposal**; the supervisor confirms it, and any
 disagreement resolves to the higher tier.
 
+### Survive interruption — the execution environment is not reliable
+
+Sessions end, VMs restart, contexts compact, processes die without notice.
+None of these may lose work or strand a commitment. The full pattern
+catalog, with the failure each pattern defeats, is
+`references/execution-patterns.md`. The load-bearing rules:
+
+- **Checkpoint as you go.** Any job longer than one sitting writes its
+  progress to a file in the workspace as it works — what is done, what
+  remains — plus a resume marker naming the job. A later instance (or this
+  one, after a restart) reads the marker and continues, skipping completed
+  items. Work that exists only in a running process or in context is work
+  that will be lost.
+- **A promise to follow up is a scheduled job, not a sleep.** Nothing wakes
+  a session after its turn ends. Anything that must be checked later — a
+  CI run, a long build, a delegated worker — gets a scheduled check that
+  polls, reports only on completion or failure, and disables itself when
+  done. Never let a background process be the only place a commitment
+  lives.
+- **Re-entry is verified, then idempotent.** A resumed job first
+  establishes what actually happened while it was down — read the repo,
+  the queue, the output files — and skips what is already done. Before
+  repeating any action that cannot be undone, verify whether it already
+  took effect: a failed report does not prove nothing happened.
+- **Prefer state that lives outside the session.** Commits, API-side
+  state, and files survive; process memory does not. Commit early and
+  treat the branch plus the progress file as the checkpoint the next
+  instance resumes from.
+- **Decompose so partial progress counts.** Split long work into units
+  that each land durably — a file, a commit, a claimed queue item acked on
+  completion. If the session dies at 70%, the 70% is on disk and the
+  resume starts from the remainder.
+- **Bound every retry, then block.** §5's cancel-and-retry rules apply to
+  resumed work too: two failures at the same step means a changed approach
+  or a `BLOCKED_` entry with the evidence — never an unbounded loop
+  burning the user's absence.
+
 ---
 
 ## 6. Routing questions to the council
@@ -681,6 +718,9 @@ Rules:
 - `references/tiers.md` — worked classifications and boundary cases.
 - `references/delegation.md` — the supervisor protocol: spawn briefs, stall
   detection, cancel/retry, worked failure cases.
+- `references/execution-patterns.md` — the resilience catalog: checkpoints,
+  scheduled self-checks, verified re-entry, and the same patterns as
+  implemented by other agent runtimes.
 - `references/handoff.md` — the full takeover protocol: progress log, request,
   knowledge dump, stand-down, cold takeover, split-brain rules.
 - `references/templates.md` — verbatim templates for every file this skill
