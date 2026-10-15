@@ -117,6 +117,12 @@ Confidence handling is deliberate and must not be loosened:
   verdict means the council could not decide on the information available;
   proceeding discards the one useful thing it produced.
 
+One further verdict value, additive in council-skill 0.3.0: `NONE`, always
+paired with `CONFIDENCE: low`, means the council produced no ruling (its
+Judge failed; the orchestrator emitted the trailer mechanically). It changes
+nothing about consumption — `low` blocks — and afk 0.4.0 names the case in
+its act-on-verdict steps so it does not have to be inferred.
+
 ## Invariants — these are the safety properties, not preferences
 
 - **Uncertain about the tier → higher tier.** No exceptions. Over-classifying
