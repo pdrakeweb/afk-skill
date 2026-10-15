@@ -1,6 +1,6 @@
 ---
 name: "afk"
-version: "0.4.0"
+version: "0.4.1"
 description: >
   Govern autonomous work while the user is away from keyboard. Triggers on "I'm
   going AFK", "AFK mode", "I'm AFK for 3 hours", "heading out", "stepping away",
@@ -371,12 +371,12 @@ that arises and would normally have been asked of the user** (§6).
    ```
 4. Act:
    - **high / medium** → proceed with the verdict's option.
-   - **low** → **do not proceed.** Block it (§high) and move on. A low-
+   - **low** → **do not proceed.** Block it (§high) and escalate it in the return briefing. A low-
      confidence verdict is the council reporting it lacks the information to
      decide; acting anyway discards the only useful signal it produced.
    - **NONE** → the council produced no ruling: its Judge failed and the
      council orchestrator emitted the trailer mechanically. Treat exactly
-     like **low** — do not proceed, block it, move on. (Consumption here is
+     like **low** — do not proceed, block it, and escalate it in the return briefing. (Consumption here is
      by CONFIDENCE, never by the verdict token, so this case was already
      safe; it is named so no reader has to infer it.)
 5. Carry every `COUNCIL_NEEDS` item into the return briefing. Those are
