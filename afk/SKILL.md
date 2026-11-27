@@ -1,6 +1,6 @@
 ---
 name: "afk"
-version: "0.5.1"
+version: "0.6.0"
 description: >
   Govern autonomous work while the user is away from keyboard. Triggers on "I'm
   going AFK", "AFK mode", "I'm AFK for 3 hours", "heading out", "stepping away",
