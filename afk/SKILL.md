@@ -84,7 +84,7 @@ Ask them **all in one batch, now**, with a recommended default each:
 > **Need your brain before you go — 3 things:**
 > 1. `legacy_email` — is anything outside this repo reading it? *(default: assume yes, keep it)*
 > 2. The retry cap: is 30s a real SLA or a guess? *(default: treat as guess, tune freely)*
-> 3. Dana's timeline question — do you want to answer that yourself? *(default: yes, I'll only acknowledge)*
+> 3. Alex's timeline question — do you want to answer that yourself? *(default: yes, I'll only acknowledge)*
 >
 > Reply with numbers to change, or "defaults".
 
@@ -620,7 +620,7 @@ line is the whole job.
 
 Reply with substance already known, plus:
 
-> Pete is AFK until ~17:00 today. I've flagged this for him.
+> The user is AFK until ~17:00 today. I've flagged this for them.
 
 Log it under `## Messages` with sender, gist, and what was said back.
 
@@ -705,7 +705,7 @@ Rationale and reversal for each: afk_log_2026-07-26.md
 - `migration` agent stalled twice on the same denied `alembic` grant → blocked.
 
 ### 💬 Messages (2)
-- **Dana, 10:15** — Q3 timeline. Acknowledged, **no commitment made**.
+- **Alex, 10:15** — Q3 timeline. Acknowledged, **no commitment made**.
 
 ### 🚧 In flight
 Retry backoff in `queue/worker.py`, uncommitted, ~half done.

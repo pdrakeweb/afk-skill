@@ -106,8 +106,8 @@ successful outcome and costs the session nothing; stalling costs it hours."
 reverse it. Logged *before* acting, so a crash mid-action leaves a recoverable
 record of intent.
 
-**7 — Comms.** Acknowledge-only by default: *"Pete is AFK until ~17:00. I've
-flagged this for him."* Never agrees to a deadline, scope, price, or meeting;
+**7 — Comms.** Acknowledge-only by default: *"The user is AFK until ~17:00. I've
+flagged this for them."* Never agrees to a deadline, scope, price, or meeting;
 never speaks to your availability or opinions; never initiates outbound contact.
 Anything beyond an acknowledgement is a medium-stakes decision — councilled or
 blocked.

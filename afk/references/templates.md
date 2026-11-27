@@ -39,7 +39,7 @@ Remote Control state change).
 ## Expertise answers (from the departure batch)
 - "legacy_email — yes, the billing exporter reads it. Leave it."
 - "30s retry cap is a guess, tune it freely."
-- "Dana's timeline question — I'll answer that myself, just acknowledge."
+- "Alex's timeline question — I'll answer that myself, just acknowledge."
 
 ## Pre-authorized (verbatim, as the user said it)
 - "yes, quarantine the flaky test and open an issue, don't chase it"
@@ -74,7 +74,7 @@ session may hold it:
 **Need your brain before you go — 3 things:**
 1. `legacy_email` — is anything outside this repo reading it? *(default: assume yes, keep it)*
 2. The 30s retry cap — real SLA or a guess? *(default: treat as guess, tune freely)*
-3. Dana's timeline question — answer it yourself? *(default: yes, I'll only acknowledge)*
+3. Alex's timeline question — answer it yourself? *(default: yes, I'll only acknowledge)*
 
 Reply with numbers to change, or "defaults".
 ```
@@ -140,7 +140,7 @@ Session: 09:12 → (open) · Remote Control: connected · Council: available
 - **Tier:** medium
 - **⚠ UNVERIFIED — council skill not installed; single-model judgement only**
 - **Case for:** additive is reversible; the destructive version saves ~40MB,
-  not worth an irreversible step taken while Pete is out.
+  not worth an irreversible step taken while the user is out.
 - **Failure modes:** two columns coexist until cleanup; a stale reader could
   write the old column.
 - **Feasibility:** same effort either way.
@@ -179,9 +179,9 @@ Session: 09:12 → (open) · Remote Control: connected · Council: available
 
 ## Messages
 
-### 10:15 — Dana (Slack DM)
+### 10:15 — Alex (Slack DM)
 - **Gist:** does the Q3 API timeline still hold?
-- **Replied:** "Pete is AFK until ~17:00 today. I've flagged this for him."
+- **Replied:** "The user is AFK until ~17:00 today. I've flagged this for them."
 - **Commitments made:** none
 
 ## Notes
@@ -267,7 +267,7 @@ flags always (`--yes`, `-y`, `--non-interactive`, `--no-input`). Never disable a
 safety check to avoid a prompt (`--no-verify`, skipping tests, silencing a
 linter). If the only way forward needs a human, return — do not attempt it.
 
-CONTEXT: Pete said the 30s cap is a guess, tune freely. Don't touch billing code.
+CONTEXT: The user said the 30s cap is a guess, tune freely. Don't touch billing code.
 
 TIER RULES: act on low-stakes decisions (reversible, local, no external side
 effect) and report them with rationale. Anything medium or above — architecture,
@@ -342,8 +342,8 @@ Written by the **new** session. Its appearance is the old session's signal.
 # TAKEOVER REQUESTED
 - **At:** 2026-07-26T16:52Z
 - **By:** new Claude Code session, Remote Control **connected**
-- **Working dir:** C:\Users\pdrak\Documents\Source\myproject
-- **User present:** yes — Pete confirmed the takeover
+- **Working dir:** C:\Users\user\Documents\Source\myproject
+- **User present:** yes — the user confirmed the takeover
 
 ## What I need
 1. Stop starting new work NOW. Set Status: HANDING_OFF.
@@ -374,7 +374,7 @@ acting — believe git over this file; it is a self-report written by a session
 that had just been interrupted.
 
 ## 1. Identity and state
-- **Repo / working dir:** C:\Users\pdrak\Documents\Source\myproject
+- **Repo / working dir:** C:\Users\user\Documents\Source\myproject
 - **Branch:** `hotfix/session-leak`
 - **HEAD:** a3f9c21 — `WIP: retry backoff, cap not yet implemented`
 - **git status:** clean (everything WIP-committed during quiesce)
@@ -520,7 +520,7 @@ Rationale and reversal for each: afk_log_2026-07-26.md
   **Worth deciding whether staging is ever in scope for AFK.**
 
 ### 💬 Messages (1)
-- **Dana, 10:15** — Q3 API timeline. Acknowledged only, **no commitment made**.
+- **Alex, 10:15** — Q3 API timeline. Acknowledged only, **no commitment made**.
 
 ### 🚧 In flight
 Nothing half-finished. Queue emptied at 15:50; I stopped rather than starting
