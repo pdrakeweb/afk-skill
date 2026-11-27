@@ -162,7 +162,21 @@ actually connected. Check whether the `council` skill is installed and record it
 Spawn the watchdog (§2), then one line:
 
 > AFK until 17:00. Council: ✓. Remote Control: ✓. 6 permissions granted,
-> 1 denied (deploy). Watchdog armed. Logging to `afk_log_2026-07-26.md`. Go.
+> 1 denied (deploy). Persona: concise. Watchdog armed. Logging to
+> `afk_log_2026-07-26.md`. Go.
+
+### 1.8 Persona — which voice replies while you're out
+
+Personas set the voice and style of outbound replies (§7). They are
+communication style only — they never change a tier and never authorize
+anything (`references/personas.md`).
+
+- If personas exist, ask which one this session uses, or none. Default:
+  none — plain acknowledge-only, the current behaviour. Record the choice
+  in `afk_session.md`.
+- If none exist, offer once: "No personas set up — want one?" If yes, run
+  the onboarding flow (`references/personas.md`); if no, proceed with none
+  and do not ask again this departure.
 
 ---
 
@@ -624,6 +638,13 @@ Reply with substance already known, plus:
 
 Log it under `## Messages` with sender, gist, and what was said back.
 
+If a persona is active for this session, write the acknowledgement in the
+persona's voice — same content, same limits. The first line still states the
+user is away; the persona shapes phrasing, not facts. Never write as if you
+are the user, and never as if you are the person a corpus persona was
+derived from. Logs, the return briefing, and sub-agent briefs stay in plain
+voice — the persona applies to outbound messages only.
+
 **Never**, in any message: agree to a deadline, scope, price, or meeting; accept
 or decline an invitation; confirm something will be done; speak to the user's
 availability, opinions, or intentions; share non-public work detail; or answer a
@@ -672,6 +693,8 @@ armed during the session, set
 
 ```
 ## Welcome back — AFK 09:12 → 16:48 (7h36m)
+
+Persona in use: concise — replies sent in that voice; no commitments made.
 
 ### 🔴 Do this first
 - **Re-run `/remote-control`** — connection dropped at 12:40; nothing could
@@ -756,3 +779,5 @@ Rules:
   knowledge dump, stand-down, cold takeover, split-brain rules.
 - `references/templates.md` — verbatim templates for every file this skill
   writes.
+- `references/personas.md` — persona onboarding: interview and corpus paths,
+  storage, selection at departure, guardrails.

@@ -17,6 +17,7 @@ Remote Control state change).
 - **Remote Control:** connected  (→ lost 12:40, conservative mode from then)
 - **Mode:** normal | conservative
 - **Comms posture:** acknowledge-only
+- **Persona:** concise (`personas/concise.md`) | none
 - **Council available:** yes
 - **Watchdog:** armed (agent `afk-watchdog`)
 - **Log:** afk_log_2026-07-26.md
@@ -481,6 +482,8 @@ anything that is merely news.
 
 ```markdown
 ## Welcome back — AFK 09:12 → 16:48 (7h36m)
+
+Persona in use: concise — replies sent in that voice; no commitments made.
 
 ### 🔴 Do this first
 - **Re-run `/remote-control`** — dropped at 12:40; nothing could reach your
